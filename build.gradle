@@ -15,9 +15,6 @@ loom {
     accessWidenerPath = file("src/main/resources/vulkanmod.accesswidener")
 }
 
-// This module provides LWJGL Android fork Java sources for compile-time compatibility.
-// At runtime, Zalith Launcher injects its own LWJGL Android fork that matches these APIs.
-// VulkanMod must be compiled against this fork so bytecode references the correct field layout.
 sourceSets {
     main {
         java {
@@ -27,12 +24,9 @@ sourceSets {
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-
-    // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     ext.includeModule = { name ->
@@ -58,12 +52,11 @@ project.ext.macosNatives = "natives-macos"
 project.ext.macosArmNatives = "natives-macos-arm64"
 
 dependencies {
-    // Use LWJGL Android fork sources for compile-time compatibility.
-    // This ensures bytecode matches the API Zalith Launcher injects at runtime.
-    // The actual LWJGL at runtime is provided by Zalith - we do NOT bundle it.
-    compileOnly(project(':lwjgl-android'))
+    // FIX: Use Loom's namedElements configuration for project dependency.
+    // This is the OFFICIAL Fabric way to depend on subprojects.
+    // namedElements contains unmapped outputs, bypassing java-library variant issues.
+    compileOnly project(path: ':lwjgl-android', configuration: 'namedElements')
 
-    // Still bundle vma and shaderc natives (these are NOT overridden by Zalith)
     ext.includeNatives = { name ->
         include(implementation("$name:$lwjglVersion"))
         include(runtimeOnly("$name:$lwjglVersion:$winNatives"))
@@ -75,14 +68,12 @@ dependencies {
     includeNatives("org.lwjgl:lwjgl-vma")
     includeNatives("org.lwjgl:lwjgl-shaderc")
 
-    //MoltenVK
     include(runtimeOnly("org.lwjgl:lwjgl-vulkan:$lwjglVersion:$macosNatives"))
     include(runtimeOnly("org.lwjgl:lwjgl-vulkan:$lwjglVersion:$macosArmNatives"))
 }
 
 processResources {
     inputs.property "version", project.version
-
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
@@ -93,11 +84,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 java {
-    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-    // if it is present.
-    // If you remove this line, sources will not be generated.
     withSourcesJar()
-
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
@@ -108,7 +95,6 @@ jar {
     }
 }
 
-// configure the maven publication
 publishing {
     publications {
         create("mavenJava", MavenPublication) {
@@ -116,12 +102,6 @@ publishing {
             from components.java
         }
     }
-
-    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
     repositories {
-        // Add repositories to publish to here.
-        // Notice: This block does NOT have the same function as the block in the top level.
-        // The repositories here will be used for publishing your artifact, not for
-        // retrieving dependencies.
     }
 }
