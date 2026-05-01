@@ -7,6 +7,12 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
+dependencies {
+    // javax.annotation was removed from JDK 9+. Add JSR-305 for compile-time compatibility.
+    // This provides @Nullable, @Nonnull, etc. used throughout the LWJGL sources.
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+}
+
 // This module provides LWJGL Android fork Java sources for compile-time compatibility.
 // At runtime, Zalith Launcher injects its own LWJGL Android fork that matches these APIs.
 // VulkanMod must be compiled against this fork so bytecode references the correct field layout.
