@@ -469,10 +469,6 @@ public class Vulkan {
             System.err.println("Warning: pfnUserCallback setter failed");
         }
     }
-        debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
-//        debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT);
-        debugCreateInfo.pfnUserCallback(Vulkan::debugCallback);
-    }
 
     private static void setupDebugMessenger() {
 
