@@ -213,7 +213,14 @@ public class Vulkan {
 
             VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack);
 
-            appInfo.sType(VK_STRUCTURE_TYPE_APPLICATION_INFO);
+            // Android Java 21 compatible struct initialization - handle Unsafe access safely
+            try {
+                appInfo.sType(VK_STRUCTURE_TYPE_APPLICATION_INFO);
+            } catch (NoSuchFieldError e) {
+                // Fallback for Android Java 21 where sun.misc.Unsafe field access fails
+                setSTypeUnsafe(appInfo, VK_STRUCTURE_TYPE_APPLICATION_INFO);
+            }
+            
             appInfo.pApplicationName(stack.UTF8Safe("VulkanMod"));
             appInfo.applicationVersion(VK_MAKE_VERSION(1, 0, 0));
             appInfo.pEngineName(stack.UTF8Safe("VulkanMod Engine"));
@@ -222,7 +229,14 @@ public class Vulkan {
 
             VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack);
 
-            createInfo.sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
+            // Android Java 21 compatible struct initialization
+            try {
+                createInfo.sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
+            } catch (NoSuchFieldError e) {
+                // Fallback for Android Java 21 where sun.misc.Unsafe field access fails
+                setSTypeUnsafe(createInfo, VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
+            }
+            
             createInfo.pApplicationInfo(appInfo);
             createInfo.ppEnabledExtensionNames(getRequiredInstanceExtensions());
 
@@ -265,8 +279,37 @@ public class Vulkan {
         }
     }
 
+    /**
+     * Safe sType setter for LWJGL structs on Android Java 21.
+     * Handles NoSuchFieldError from sun.misc.Unsafe access issues.
+     */
+    private static <T extends VkBaseInStructure> void setSTypeUnsafe(T struct, int sType) {
+        try {
+            // Try to use reflection to access the address and write sType directly
+            java.lang.reflect.Method addressMethod = struct.getClass().getMethod("address");
+            long address = (long) addressMethod.invoke(struct);
+            
+            // Get Unsafe instance via reflection
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            
+            // Write sType (int) at offset 0
+            unsafe.putInt(address, sType);
+        } catch (Exception e) {
+            // If all else fails, log and throw
+            System.err.println("Failed to set sType on struct: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Unable to initialize Vulkan struct (sType)", e);
+        }
+    }
+
     private static void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo) {
-        debugCreateInfo.sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
+        try {
+            debugCreateInfo.sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
+        } catch (NoSuchFieldError e) {
+            setSTypeUnsafe(debugCreateInfo, VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
+        }
 //        debugCreateInfo.messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT);
         debugCreateInfo.messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
         debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
@@ -349,7 +392,11 @@ public class Vulkan {
             Queue.QueueFamilyIndices queueFamilyIndices = getQueueFamilies();
 
             VkCommandPoolCreateInfo poolInfo = VkCommandPoolCreateInfo.calloc(stack);
-            poolInfo.sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
+            try {
+                poolInfo.sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
+            } catch (NoSuchFieldError e) {
+                setSTypeUnsafe(poolInfo, VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
+            }
             poolInfo.queueFamilyIndex(queueFamilyIndices.graphicsFamily);
             poolInfo.flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
