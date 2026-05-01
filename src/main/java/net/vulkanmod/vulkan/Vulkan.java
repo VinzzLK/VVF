@@ -283,7 +283,7 @@ public class Vulkan {
      * Safe sType setter for LWJGL structs on Android Java 21.
      * Handles NoSuchFieldError from sun.misc.Unsafe access issues.
      */
-    private static <T extends VkBaseInStructure> void setSTypeUnsafe(T struct, int sType) {
+    private static void setSTypeUnsafe(Object struct, int sType) {
         try {
             // Try to use reflection to access the address and write sType directly
             java.lang.reflect.Method addressMethod = struct.getClass().getMethod("address");
