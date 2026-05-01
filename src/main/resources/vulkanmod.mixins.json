@@ -7,7 +7,6 @@
   "mixins": [
   ],
   "client": [
-    "compatibility.LWJGLChecksMixin",
     "window.WindowMixin",
     "window.WindowAccessor",
 

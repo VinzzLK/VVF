@@ -47,20 +47,6 @@ public class Vulkan {
     public static final Set<String> VALIDATION_LAYERS;
 
     static {
-        // CRITICAL: Patch Unsafe access early for Android Java 21 compatibility
-        // This MUST run before any LWJGL struct initialization
-        try {
-            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-            unsafeField.setAccessible(true);
-            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
-            if (unsafe != null) {
-                System.out.println("[VulkanMod] Unsafe access patched successfully for Android Java 21");
-            }
-        } catch (Exception e) {
-            System.err.println("[VulkanMod] Warning: Unsafe patching failed: " + e.getMessage());
-            e.printStackTrace();
-        }
-        
         if (ENABLE_VALIDATION_LAYERS) {
             VALIDATION_LAYERS = new HashSet<>();
             VALIDATION_LAYERS.add("VK_LAYER_KHRONOS_validation");

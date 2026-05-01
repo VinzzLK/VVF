@@ -7,8 +7,6 @@ import net.vulkanmod.config.Config;
 import net.vulkanmod.config.Platform;
 import net.vulkanmod.config.video.VideoModeManager;
 import net.vulkanmod.render.chunk.build.frapi.VulkanModRenderer;
-import net.vulkanmod.util.VkStructureHelper;
-import net.vulkanmod.util.UnsafeAccessPatcher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,10 +20,6 @@ public class Initializer implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
-
-		// Patch Unsafe access for Android Java 21 compatibility - MUST be first
-		// This fixes NoSuchFieldError: sun.misc.Unsafe.UNSAFE issues
-		UnsafeAccessPatcher.patch();
 
 		VERSION = FabricLoader.getInstance()
 				.getModContainer("vulkanmod")
@@ -45,23 +39,6 @@ public class Initializer implements ClientModInitializer {
 		CONFIG = loadConfig(configPath);
 
 		RendererAccess.INSTANCE.registerRenderer(VulkanModRenderer.INSTANCE);
-	}
-
-	/**
-	 * Initialize Unsafe access helper for Android Java 21 compatibility.
-	 * This must be called before any Vulkan initialization.
-	 */
-	private static void initializeUnsafeHelper() {
-		try {
-			if (VkStructureHelper.isUnsafeAvailable()) {
-				LOGGER.debug("Unsafe initialized successfully for VkStructureHelper");
-			} else {
-				LOGGER.warn("Unsafe not available for VkStructureHelper - fallbacks will be used");
-			}
-		} catch (Exception e) {
-			LOGGER.error("Failed to initialize Unsafe helper: " + e.getMessage(), e);
-			// Don't fail completely, just warn
-		}
 	}
 
 	private static Config loadConfig(Path path) {
