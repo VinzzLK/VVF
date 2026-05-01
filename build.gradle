@@ -1,20 +1,19 @@
 plugins {
     id 'java-library'
-    id 'fabric-loom' version '1.9.2'
-    id 'maven-publish'
 }
 
-version = project.mod_version
-group = project.maven_group
-
-base {
-    archivesName = project.archives_base_name
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
-loom {
-    accessWidenerPath = file("src/main/resources/vulkanmod.accesswidener")
+dependencies {
+    // javax.annotation was removed from JDK 9+. Add JSR-305 for compile-time compatibility.
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
+// This module provides LWJGL Android fork Java sources for compile-time compatibility.
+// At runtime, Zalith Launcher injects its own LWJGL Android fork that matches these APIs.
 sourceSets {
     main {
         java {
@@ -23,85 +22,17 @@ sourceSets {
     }
 }
 
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-
-    ext.includeModule = { name ->
-        var module = fabricApi.module(name, project.fabric_version)
-        modImplementation(module)
-        include(module)
-    }
-
-    includeModule("fabric-api-base")
-    includeModule("fabric-resource-loader-v0")
-    includeModule("fabric-rendering-v1")
-    includeModule("fabric-renderer-api-v1")
-    includeModule("fabric-rendering-fluids-v1")
-    includeModule("fabric-rendering-data-attachment-v1")
-    includeModule("fabric-block-view-api-v2")
-}
-
-project.ext.lwjglVersion = "3.3.3"
-project.ext.jomlVersion = "1.10.4"
-project.ext.winNatives = "natives-windows"
-project.ext.linuxNatives = "natives-linux"
-project.ext.macosNatives = "natives-macos"
-project.ext.macosArmNatives = "natives-macos-arm64"
-
-dependencies {
-    // FIX: Use Loom's namedElements configuration for project dependency.
-    // This is the OFFICIAL Fabric way to depend on subprojects.
-    // namedElements contains unmapped outputs, bypassing java-library variant issues.
-    compileOnly project(path: ':lwjgl-android', configuration: 'namedElements')
-
-    ext.includeNatives = { name ->
-        include(implementation("$name:$lwjglVersion"))
-        include(runtimeOnly("$name:$lwjglVersion:$winNatives"))
-        include(runtimeOnly("$name:$lwjglVersion:$linuxNatives"))
-        include(runtimeOnly("$name:$lwjglVersion:$macosNatives"))
-        include(runtimeOnly("$name:$lwjglVersion:$macosArmNatives"))
-    }
-
-    includeNatives("org.lwjgl:lwjgl-vma")
-    includeNatives("org.lwjgl:lwjgl-shaderc")
-
-    include(runtimeOnly("org.lwjgl:lwjgl-vulkan:$lwjglVersion:$macosNatives"))
-    include(runtimeOnly("org.lwjgl:lwjgl-vulkan:$lwjglVersion:$macosArmNatives"))
-}
-
-processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
-}
-
-java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
-
-jar {
-    from("LICENSE") {
-        rename { "${it}_${project.base.archivesName.get()}"}
-    }
-}
-
-publishing {
-    publications {
-        create("mavenJava", MavenPublication) {
-            artifactId = project.archives_base_name
-            from components.java
+// Expose a proper consumable variant so the root project can resolve this subproject.
+// Without this, Gradle 8.x cannot match the subproject as a compile-time dependency.
+configurations {
+    consumable('apiElements') {
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_API))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.CLASSES))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+            attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
         }
-    }
-    repositories {
+        outgoing.artifact(tasks.named('compileJava').map { it.destinationDirectory })
     }
 }
