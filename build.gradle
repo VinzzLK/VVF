@@ -3,13 +3,6 @@ plugins {
 	id 'maven-publish'
 }
 
-repositories {
-	maven {
-		name = "LWJGL Snapshots"
-		url = "https://oss.sonatype.org/content/repositories/snapshots/"
-	}
-}
-
 version = project.mod_version
 group = project.maven_group
 
@@ -45,7 +38,7 @@ dependencies {
 	includeModule("fabric-block-view-api-v2")
 }
 
-project.ext.lwjglVersion = "3.3.6-SNAPSHOT"
+project.ext.lwjglVersion = "3.3.3"
 project.ext.jomlVersion = "1.10.4"
 project.ext.winNatives = "natives-windows"
 project.ext.linuxNatives = "natives-linux"
@@ -53,8 +46,12 @@ project.ext.macosNatives = "natives-macos"
 project.ext.macosArmNatives = "natives-macos-arm64"
 
 dependencies {
-	include(implementation("org.lwjgl:lwjgl-vulkan:$lwjglVersion"))
+	// Use LWJGL Android fork sources for compile-time compatibility.
+	// This ensures bytecode matches the API Zalith Launcher injects at runtime.
+	// The actual LWJGL at runtime is provided by Zalith - we do NOT bundle it.
+	compileOnly(project(':lwjgl-android'))
 
+	// Still bundle vma and shaderc natives (these are NOT overridden by Zalith)
 	ext.includeNatives = { name ->
 		include(implementation("$name:$lwjglVersion"))
 		include(runtimeOnly("$name:$lwjglVersion:$winNatives"))

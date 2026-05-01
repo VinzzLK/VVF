@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// This module provides LWJGL Android fork Java sources for compile-time compatibility.
+// At runtime, Zalith Launcher injects its own LWJGL Android fork that matches these APIs.
+// VulkanMod must be compiled against this fork so bytecode references the correct field layout.
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+    }
+}
