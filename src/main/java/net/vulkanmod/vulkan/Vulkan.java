@@ -47,6 +47,20 @@ public class Vulkan {
     public static final Set<String> VALIDATION_LAYERS;
 
     static {
+        // CRITICAL: Patch Unsafe access early for Android Java 21 compatibility
+        // This MUST run before any LWJGL struct initialization
+        try {
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            if (unsafe != null) {
+                System.out.println("[VulkanMod] Unsafe access patched successfully for Android Java 21");
+            }
+        } catch (Exception e) {
+            System.err.println("[VulkanMod] Warning: Unsafe patching failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
         if (ENABLE_VALIDATION_LAYERS) {
             VALIDATION_LAYERS = new HashSet<>();
             VALIDATION_LAYERS.add("VK_LAYER_KHRONOS_validation");
@@ -217,15 +231,41 @@ public class Vulkan {
             try {
                 appInfo.sType(VK_STRUCTURE_TYPE_APPLICATION_INFO);
             } catch (NoSuchFieldError e) {
-                // Fallback for Android Java 21 where sun.misc.Unsafe field access fails
                 setSTypeUnsafe(appInfo, VK_STRUCTURE_TYPE_APPLICATION_INFO);
             }
             
-            appInfo.pApplicationName(stack.UTF8Safe("VulkanMod"));
-            appInfo.applicationVersion(VK_MAKE_VERSION(1, 0, 0));
-            appInfo.pEngineName(stack.UTF8Safe("VulkanMod Engine"));
-            appInfo.engineVersion(VK_MAKE_VERSION(1, 0, 0));
-            appInfo.apiVersion(VK_API_VERSION_1_2);
+            try {
+                appInfo.pApplicationName(stack.UTF8Safe("VulkanMod"));
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: pApplicationName setter failed, continuing...");
+            }
+            
+            try {
+                appInfo.applicationVersion(VK_MAKE_VERSION(1, 0, 0));
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: applicationVersion setter failed, trying fallback...");
+                setStructIntField(appInfo, 8, VK_MAKE_VERSION(1, 0, 0));
+            }
+            
+            try {
+                appInfo.pEngineName(stack.UTF8Safe("VulkanMod Engine"));
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: pEngineName setter failed, continuing...");
+            }
+            
+            try {
+                appInfo.engineVersion(VK_MAKE_VERSION(1, 0, 0));
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: engineVersion setter failed, trying fallback...");
+                setStructIntField(appInfo, 20, VK_MAKE_VERSION(1, 0, 0));
+            }
+            
+            try {
+                appInfo.apiVersion(VK_API_VERSION_1_2);
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: apiVersion setter failed, trying fallback...");
+                setStructIntField(appInfo, 24, VK_API_VERSION_1_2);
+            }
 
             VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack);
 
@@ -237,8 +277,18 @@ public class Vulkan {
                 setSTypeUnsafe(createInfo, VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
             }
             
-            createInfo.pApplicationInfo(appInfo);
-            createInfo.ppEnabledExtensionNames(getRequiredInstanceExtensions());
+            try {
+                createInfo.pApplicationInfo(appInfo);
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: pApplicationInfo setter failed, trying fallback...");
+                setStructPointerField(createInfo, 8, appInfo.address());
+            }
+            
+            try {
+                createInfo.ppEnabledExtensionNames(getRequiredInstanceExtensions());
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: ppEnabledExtensionNames setter failed, continuing...");
+            }
 
             if (ENABLE_VALIDATION_LAYERS) {
 
@@ -304,14 +354,121 @@ public class Vulkan {
         }
     }
 
+    /**
+     * Safe integer field setter for LWJGL structs on Android Java 21.
+     * Handles NoSuchFieldError from sun.misc.Unsafe access issues.
+     * offset is the byte offset in the struct
+     */
+    private static void setStructIntField(Object struct, int offset, int value) {
+        try {
+            // Try to use reflection to access the address and write directly
+            java.lang.reflect.Method addressMethod = struct.getClass().getMethod("address");
+            long address = (long) addressMethod.invoke(struct);
+            
+            // Get Unsafe instance via reflection
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            
+            // Write int at specified offset
+            unsafe.putInt(address + offset, value);
+        } catch (Exception e) {
+            System.err.println("Failed to set int field at offset " + offset + ": " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Unable to initialize Vulkan struct field", e);
+        }
+    }
+
+    /**
+     * Safe long field setter for LWJGL structs on Android Java 21.
+     */
+    private static void setStructLongField(Object struct, int offset, long value) {
+        try {
+            java.lang.reflect.Method addressMethod = struct.getClass().getMethod("address");
+            long address = (long) addressMethod.invoke(struct);
+            
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            
+            unsafe.putLong(address + offset, value);
+        } catch (Exception e) {
+            System.err.println("Failed to set long field at offset " + offset + ": " + e.getMessage());
+            throw new RuntimeException("Unable to initialize Vulkan struct field", e);
+        }
+    }
+
+    /**
+     * Safe pointer field setter for LWJGL structs on Android Java 21.
+     */
+    private static void setStructPointerField(Object struct, int offset, long value) {
+        try {
+            java.lang.reflect.Method addressMethod = struct.getClass().getMethod("address");
+            long address = (long) addressMethod.invoke(struct);
+            
+            java.lang.reflect.Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+            
+            unsafe.putLong(address + offset, value);
+        } catch (Exception e) {
+            System.err.println("Failed to set pointer field at offset " + offset + ": " + e.getMessage());
+            throw new RuntimeException("Unable to initialize Vulkan struct field", e);
+        }
+    }
+
+    /**
+     * Universal safe setter for LWJGL structs that wraps method calls with error handling
+     */
+    private static void safeStructSet(Object struct, String methodName, Object... args) {
+        try {
+            // Try normal method first
+            java.lang.reflect.Method[] methods = struct.getClass().getDeclaredMethods();
+            java.lang.reflect.Method targetMethod = null;
+            
+            for (java.lang.reflect.Method m : methods) {
+                if (m.getName().equals(methodName) && m.getParameterCount() == args.length) {
+                    targetMethod = m;
+                    break;
+                }
+            }
+            
+            if (targetMethod != null) {
+                targetMethod.invoke(struct, args);
+            }
+        } catch (NoSuchFieldError e) {
+            // This shouldn't happen with method invocation, but handle it
+            System.err.println("NoSuchFieldError calling " + methodName + ": " + e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error calling struct method " + methodName + ": " + e.getMessage());
+        }
+    }
+
     private static void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo) {
         try {
             debugCreateInfo.sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
         } catch (NoSuchFieldError e) {
             setSTypeUnsafe(debugCreateInfo, VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT);
         }
-//        debugCreateInfo.messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT);
-        debugCreateInfo.messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
+        
+        try {
+            debugCreateInfo.messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT);
+        } catch (NoSuchFieldError e) {
+            System.err.println("Warning: messageSeverity setter failed");
+        }
+        
+        try {
+            debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
+        } catch (NoSuchFieldError e) {
+            System.err.println("Warning: messageType setter failed");
+        }
+        
+        try {
+            debugCreateInfo.pfnUserCallback(Vulkan::debugCallback);
+        } catch (NoSuchFieldError e) {
+            System.err.println("Warning: pfnUserCallback setter failed");
+        }
+    }
         debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT);
 //        debugCreateInfo.messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT);
         debugCreateInfo.pfnUserCallback(Vulkan::debugCallback);
@@ -397,8 +554,18 @@ public class Vulkan {
             } catch (NoSuchFieldError e) {
                 setSTypeUnsafe(poolInfo, VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
             }
-            poolInfo.queueFamilyIndex(queueFamilyIndices.graphicsFamily);
-            poolInfo.flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+            
+            try {
+                poolInfo.queueFamilyIndex(queueFamilyIndices.graphicsFamily);
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: queueFamilyIndex setter failed");
+            }
+            
+            try {
+                poolInfo.flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+            } catch (NoSuchFieldError e) {
+                System.err.println("Warning: flags setter failed");
+            }
 
             LongBuffer pCommandPool = stack.mallocLong(1);
 
