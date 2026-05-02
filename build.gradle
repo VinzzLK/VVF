@@ -8,12 +8,10 @@ java {
 }
 
 dependencies {
-    // javax.annotation was removed from JDK 9+. Add JSR-305 for compile-time compatibility.
+    // javax.annotation was removed from JDK 9+. JSR-305 provides @Nullable, @Nonnull etc.
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
-// This module provides LWJGL Android fork Java sources for compile-time compatibility.
-// At runtime, Zalith Launcher injects its own LWJGL Android fork that matches these APIs.
 sourceSets {
     main {
         java {
@@ -22,17 +20,12 @@ sourceSets {
     }
 }
 
-// Expose a proper consumable variant so the root project can resolve this subproject.
-// Without this, Gradle 8.x cannot match the subproject as a compile-time dependency.
-configurations {
-    consumable('apiElements') {
-        attributes {
-            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_API))
-            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.CLASSES))
-            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
-            attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
-            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
-        }
-        outgoing.artifact(tasks.named('compileJava').map { it.destinationDirectory })
+// java-library already creates apiElements - we just need to ensure the attributes
+// are set correctly so Gradle 8 variant matching resolves this subproject properly.
+configurations.named('apiElements') {
+    attributes {
+        attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
+        attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+            objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
     }
 }
