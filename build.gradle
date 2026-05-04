@@ -2,13 +2,16 @@ plugins {
     id 'java-library'
 }
 
+repositories {
+    mavenCentral()
+}
+
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
 
 dependencies {
-    // javax.annotation was removed from JDK 9+. JSR-305 provides @Nullable, @Nonnull etc.
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 }
 
@@ -20,8 +23,6 @@ sourceSets {
     }
 }
 
-// java-library already creates apiElements - we just need to ensure the attributes
-// are set correctly so Gradle 8 variant matching resolves this subproject properly.
 configurations.named('apiElements') {
     attributes {
         attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 21)
